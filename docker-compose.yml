@@ -1,0 +1,9 @@
+
+services:
+  openrouter-proxy:
+    build: ./proxy
+    ports:
+      - "${HOST_PORT:-8080}:8080"  # Map host port to container port
+    environment:
+      PORT: 8080  # Container port is fixed at 8080
+      DISABLE_SSL_VERIFY: "${DISABLE_SSL_VERIFY:-false}"  # Set to 'true' to bypass SSL verification (e.g., for Proxyman)
