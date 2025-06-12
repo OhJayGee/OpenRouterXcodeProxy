@@ -34,28 +34,6 @@ docker build -t openrouter-proxy ./proxy
 docker run --rm -p ${HOST_PORT:-8080}:8080 openrouter-proxy
 ```
 
-## Using with Proxyman (Debugging Proxy)
-
-When using a debugging proxy like Proxyman, you might encounter SSL certificate verification errors. To resolve this:
-
-1. Set the `DISABLE_SSL_VERIFY` environment variable to `true`:
-```bash
-# For Docker Compose
-DISABLE_SSL_VERIFY=true docker-compose up
-
-# For standalone executable
-DISABLE_SSL_VERIFY=true ./proxy/dist/app
-```
-
-2. Trust Proxyman's root certificate in your system keychain (macOS):
-   - Open Proxyman
-   - Go to Certificate → Install Certificate on This Mac...
-   - Follow prompts to add to System keychain
-   - Open Keychain Access, find "Proxyman" certificate
-   - Double-click it, expand Trust, and set "When using this certificate" to "Always Trust"
-
-**Important Security Note:** Disabling SSL verification should only be done for debugging purposes. Never use this in production environments as it makes connections vulnerable to man-in-the-middle attacks.
-
 ### Standalone Executable Deployment
 1. Make the build script executable:
 ```bash
@@ -77,7 +55,13 @@ To run on a different port (e.g., 9090):
 PORT=9090 ./proxy/dist/app
 ```
 
+## Environment Variables
+
+- `DISABLE_SSL_VERIFY`: Set to 'true' to disable SSL verification (useful for debugging with proxies like Charles). Default: SSL verification is enabled.
+- `MODEL_FILTER_FILE`: Set to the absolute path of a text file containing allowed model IDs (one per line). If set, the `/v1/models` endpoint will only return models whose IDs are in this file.
+
 ## Xcode Setup
+
 - Setting > Intelligence > Add a Model Provider...
     - URL: http://localhost:8080
     - API Key: Bearer sk-...
@@ -85,6 +69,28 @@ PORT=9090 ./proxy/dist/app
     - Description: OpenRouter
 
     <img src="images/xcode-settings.png" alt="Xcode Settings">
+
+## Using with Proxyman (Debugging Proxy)
+
+When using a debugging proxy like Proxyman, you might encounter SSL certificate verification errors. To resolve this:
+
+1. Set the `DISABLE_SSL_VERIFY` environment variable to `true`:
+```bash
+# For Docker Compose
+DISABLE_SSL_VERIFY=true docker-compose up
+
+# For standalone executable
+DISABLE_SSL_VERIFY=true ./proxy/dist/app
+```
+
+2. Trust Proxyman's root certificate in your system keychain (macOS):
+   - Open Proxyman
+   - Go to Certificate → Install Certificate on This Mac...
+   - Follow prompts to add to System keychain
+   - Open Keychain Access, find "Proxyman" certificate
+   - Double-click it, expand Trust, and set "When using this certificate" to "Always Trust"
+
+**Important Security Note:** Disabling SSL verification should only be done for debugging purposes. Never use this in production environments as it makes connections vulnerable to man-in-the-middle attacks.
 
 ## Usage
 - Get models in OpenAI format: `GET http://localhost:8080/models` (include your OpenRouter API key in the Authorization header)

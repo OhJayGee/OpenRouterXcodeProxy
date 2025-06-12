@@ -20,7 +20,7 @@ def log_request(url, headers, method, body=None):
 
 @app.route('/v1/models', methods=['GET'])
 def get_models():
-    """Return models in OpenAI format"""
+    """Return models in OpenAI format, optionally filtered by filter-models.txt"""
     try:
         # Forward all headers except Host
         headers = dict(request.headers)
@@ -40,6 +40,27 @@ def get_models():
         response = requests.get(url, headers=headers, verify=verify_ssl)
         response.raise_for_status()
         openrouter_data = response.json()
+        
+        # Load allowed models from filter file if specified
+        allowed_models = set()
+        filter_path = os.environ.get('MODEL_FILTER_FILE')
+        
+        if filter_path and os.path.exists(filter_path):
+            try:
+                with open(filter_path, 'r') as f:
+                    for line in f:
+                        model_id = line.strip()
+                        if model_id:  # Skip empty lines
+                            allowed_models.add(model_id)
+            except Exception as e:
+                print(f"Error reading model filter file at {filter_path}: {e}")
+        
+        # Filter models if we have entries
+        if allowed_models:
+            openrouter_data["data"] = [
+                model for model in openrouter_data["data"] 
+                if model["id"] in allowed_models
+            ]
         
         # Transform to OpenAI format
         openai_models = {
