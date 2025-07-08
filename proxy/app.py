@@ -1,6 +1,8 @@
 import requests
 import json
 import os
+import re
+import fnmatch
 from flask import Flask, request, jsonify, Response, stream_with_context
 
 app = Flask(__name__)
@@ -41,25 +43,39 @@ def get_models():
         response.raise_for_status()
         openrouter_data = response.json()
         
-        # Load allowed models from filter file if specified
+        # Load allowed models from filter file
         allowed_models = set()
         filter_path = os.environ.get('MODEL_FILTER_FILE')
+
+        if filter_path is None:
+            # If env var is not set, check for default file
+            if os.path.exists('filter-models.txt'):
+                filter_path = 'filter-models.txt'
         
-        if filter_path and os.path.exists(filter_path):
-            try:
-                with open(filter_path, 'r') as f:
-                    for line in f:
-                        model_id = line.strip()
-                        if model_id:  # Skip empty lines
-                            allowed_models.add(model_id)
-            except Exception as e:
-                print(f"Error reading model filter file at {filter_path}: {e}")
+        if filter_path:
+            print(f"Attempting to use model filter file: {filter_path}")
+            if os.path.exists(filter_path):
+                print(f"Filter file found at {filter_path}.")
+                try:
+                    with open(filter_path, 'r') as f:
+                        for line in f:
+                            model_id = line.strip()
+                            if model_id:  # Skip empty lines
+                                allowed_models.add(model_id) 
+                    print(f"Loaded {len(allowed_models)} models from filter file.")
+                except Exception as e:
+                    print(f"Error reading model filter file at {filter_path}: {e}")
+            else:                
+                print(f"Filter file NOT found at {filter_path}.")       
         
         # Filter models if we have entries
-        if allowed_models:
+        if allowed_models: 
+            print("Applying model filter.")
+            # Convert wildcard patterns to regex patterns
+            regex_patterns = [fnmatch.translate(pattern) for pattern in allowed_models]
             openrouter_data["data"] = [
-                model for model in openrouter_data["data"] 
-                if model["id"] in allowed_models
+                model for model in openrouter_data["data"]
+                if any(re.match(pattern, model["id"]) for pattern in regex_patterns)
             ]
         
         # Transform to OpenAI format
@@ -126,5 +142,6 @@ import os
 # ...
 
 if __name__ == '__main__':
+    from waitress import serve
     port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    serve(app, host='0.0.0.0', port=port)
