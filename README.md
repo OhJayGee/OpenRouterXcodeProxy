@@ -77,7 +77,16 @@ PORT=9090 ./proxy/dist/app
    - Xcode might error when having to load the entire unfiltered model list from openrouter.
    - Once everything works you will see the available model list in two places in the Xcode UI:
      - Intelligence Tab: drop down for models with the heading "Openrouter"
-     - Intelligence Setting: when clicking on the model provider "Openrouter" you see a list all available models, and you can enable the models you want to use, or even favorite the models you like most for coding.
+
+       <img src="images/Xcode-Models.png" alt="Xcode Models">" 
+
+     - Intelligence Settings:
+
+       <img src="images/XcodeSettings.png" alt="Xcode Settings">" 
+
+       when clicking on the model provider "Openrouter" you see a list all available models, and you can enable the models you want to use, or even favorite the models you like most for coding.
+
+       <img src="images/OpenRouterSettings.png" alt="OpenRouter Settings">" 
 
 3. Providing additional context with Apple Documentation (i.e. as MD) helps models to deal with modern Swift Dialects (Swift 6)
 4. Instruct your model to write an Architecture and Design document, a requirements documents and an implementation plan, then have the models do coding/testing.
