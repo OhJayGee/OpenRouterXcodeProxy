@@ -1,9 +1,7 @@
-openai/o4-mini
 deepseek/deepseek-r1-0528:free
-anthropic/claude-sonnet-4
 anthropic/claude-3.7-sonnet
 anthropic/claude-3.7-sonnet:thinking
-openai/gpt-4.1
-openai/gpt-4.1-mini
-openai/gpt-4.1-nano
-google/gemini-2.5-flash-preview-05-20
+anthropic/claude-*4*
+openai/4*
+google/gemma*3n*
+google/gemini-2.5*
