@@ -70,6 +70,18 @@ PORT=9090 ./proxy/dist/app
 
     <img src="images/xcode-settings.png" alt="Xcode Settings">
 
+## Troubleshooting
+
+1. Logging: The proxy supports logging to stdio, so you can see Xcode's prompts and tool use and Swift Macro prompting. 
+2. Xcode and available models:
+   - Xcode might error when having to load the entire unfiltered model list from openrouter.
+   - Once everything works you will see the available model list in two places in the Xcode UI:
+     - Intelligence Tab: drop down for models with the heading "Openrouter"
+     - Intelligence Setting: when clicking on the model provider "Openrouter" you see a list all available models, and you can enable the models you want to use, or even favorite the models you like most for coding.
+
+3. Providing additional context with Apple Documentation (i.e. as MD) helps models to deal with modern Swift Dialects (Swift 6)
+4. Instruct your model to write an Architecture and Design document, a requirements documents and an implementation plan, then have the models do coding/testing.
+
 ## Using with Proxyman (Debugging Proxy)
 
 When using a debugging proxy like Proxyman, you might encounter SSL certificate verification errors. To resolve this:
