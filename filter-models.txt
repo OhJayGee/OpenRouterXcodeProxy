@@ -1,3 +1,4 @@
+z-ai/glm-4.5
 deepseek/deepseek-r1-0528:free
 anthropic/claude-3.7-sonnet
 anthropic/claude-3.7-sonnet:thinking
