@@ -1,3 +1,27 @@
+"""
+OpenRouter Proxy for Xcode 26 Beta
+
+This Flask application acts as a compatibility layer between Xcode 26 Beta's AI integration
+and OpenRouter's API. It transforms OpenRouter API responses into OpenAI-compatible format,
+enabling Xcode to use OpenRouter's extensive model catalog.
+
+Key Features:
+- Transforms /v1/models endpoint responses to OpenAI format
+- Proxies /v1/chat/completions requests with format conversion
+- Supports streaming and non-streaming chat completions
+- Implements model filtering via whitelist with wildcard support
+- Provides comprehensive request/response logging
+- Handles graceful error formatting for Xcode compatibility
+
+Environment Variables:
+- PORT: Server port (default: 8080)
+- DISABLE_SSL_VERIFY: Set to 'true' to disable SSL verification (debugging only)
+- MODEL_FILTER_FILE: Path to model filter file (default: filter-models.txt)
+
+Author: OpenRouter Xcode Proxy Contributors
+License: MIT
+"""
+
 import requests
 import json
 import os
@@ -12,12 +36,39 @@ app = Flask(__name__)
 OPENROUTER_API_URL = "https://openrouter.ai"
 
 def log_request(url, headers, method, body=None):
-    """Log request details for debugging"""
+    """
+    Log HTTP request details to stdout for debugging and monitoring.
+
+    This function outputs formatted request information including URL, HTTP method,
+    headers, and request body (if present). Useful for debugging Xcode's interactions
+    with the proxy.
+
+    Args:
+        url (str): The target URL for the request
+        headers (dict): HTTP headers to be sent with the request
+        method (str): HTTP method (GET, POST, etc.)
+        body (dict, optional): Request body payload (will be JSON formatted)
+
+    Returns:
+        None
+
+    Example output:
+        --- Sending POST request to https://openrouter.ai/api/v1/chat/completions ---
+        Headers:
+          Authorization: Bearer sk-...
+          Content-Type: application/json
+        Body:
+          {
+            "model": "anthropic/claude-3.7-sonnet",
+            "messages": [...]
+          }
+        --- End of request ---
+    """
     print(f"\n--- Sending {method} request to {url} ---")
     print("Headers:")
     for key, value in headers.items():
         print(f"  {key}: {value}")
-    
+
     if body:
         print("Body:")
         print(json.dumps(body, indent=2))
@@ -25,7 +76,55 @@ def log_request(url, headers, method, body=None):
 
 @app.route('/v1/models', methods=['GET'])
 def get_models():
-    """Return models in OpenAI format, optionally filtered by filter-models.txt"""
+    """
+    GET /v1/models - Retrieve available models in OpenAI-compatible format.
+
+    This endpoint fetches models from OpenRouter's API and transforms them into
+    OpenAI's format for Xcode compatibility. Supports optional filtering via
+    a whitelist file with wildcard pattern matching.
+
+    Model Filtering:
+    - Checks for MODEL_FILTER_FILE environment variable
+    - Falls back to 'filter-models.txt' in current directory
+    - Supports wildcard patterns (e.g., 'anthropic/*', 'openai/gpt-4*')
+    - No filtering applied if file doesn't exist
+
+    Request Headers:
+        Authorization (str): Bearer token with OpenRouter API key
+                            Format: "Bearer sk-or-v1-..."
+
+    Returns:
+        JSON Response: OpenAI-formatted model list
+        {
+            "object": "list",
+            "data": [
+                {
+                    "id": "anthropic/claude-3.7-sonnet",
+                    "object": "model",
+                    "created": 1234567890,
+                    "owned_by": "anthropic"
+                },
+                ...
+            ]
+        }
+
+    Status Codes:
+        200: Success
+        500: Server error (with error message in JSON)
+
+    Environment Variables:
+        MODEL_FILTER_FILE: Path to model filter file (optional)
+        DISABLE_SSL_VERIFY: Set to 'true' to disable SSL verification (optional)
+
+    Example:
+        curl http://localhost:8080/v1/models \\
+          -H "Authorization: Bearer sk-or-v1-..."
+
+    Notes:
+        - Filters out OpenRouter-specific model fields
+        - Extracts 'owned_by' from model ID prefix (before '/')
+        - Logs all requests for debugging
+    """
     try:
         # Forward all headers except Host
         headers = dict(request.headers)
@@ -101,7 +200,97 @@ def get_models():
 
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
-    """Proxy chat completions to OpenRouter"""
+    """
+    POST /v1/chat/completions - Proxy chat completion requests to OpenRouter.
+
+    This endpoint forwards chat completion requests to OpenRouter's API and transforms
+    the responses to be OpenAI-compatible. Supports both streaming and non-streaming
+    responses, with automatic filtering of OpenRouter-specific fields.
+
+    Request Body:
+        model (str): Model ID (e.g., "anthropic/claude-3.7-sonnet")
+        messages (list): Conversation messages
+            [{"role": "user", "content": "Hello"}]
+        stream (bool, optional): Enable streaming responses (default: false)
+        temperature (float, optional): Sampling temperature
+        max_tokens (int, optional): Maximum tokens to generate
+        ... (other OpenAI-compatible parameters)
+
+    Request Headers:
+        Authorization (str): Bearer token with OpenRouter API key
+        Content-Type (str): application/json
+
+    Returns:
+        Non-streaming Response:
+        {
+            "id": "gen-...",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "anthropic/claude-3.7-sonnet",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Response text..."
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }
+
+        Streaming Response:
+        Server-Sent Events (SSE) format:
+        data: {"id": "gen-...", "object": "chat.completion.chunk", ...}
+        data: {"id": "gen-...", "choices": [{"delta": {"content": "text"}}]}
+        data: [DONE]
+
+    Status Codes:
+        200: Success (even for handled errors - see error response format)
+        500: Unhandled server error
+
+    Error Handling:
+        OpenRouter errors are transformed into OpenAI-compatible responses
+        with error messages in the content field, allowing Xcode to display
+        them gracefully instead of crashing.
+
+    Response Transformations:
+        - Removes OpenRouter-specific fields: 'provider', 'native_finish_reason',
+          'reasoning', 'reasoning_details', 'prompt_tokens_details'
+        - Filters out "OPENROUTER PROCESSING" messages in streaming mode
+        - Formats errors as valid chat completion responses
+
+    Environment Variables:
+        DISABLE_SSL_VERIFY: Set to 'true' to disable SSL verification (optional)
+
+    Example Non-streaming:
+        curl http://localhost:8080/v1/chat/completions \\
+          -H "Authorization: Bearer sk-or-v1-..." \\
+          -H "Content-Type: application/json" \\
+          -d '{
+            "model": "anthropic/claude-3.7-sonnet",
+            "messages": [{"role": "user", "content": "Hello!"}]
+          }'
+
+    Example Streaming:
+        curl http://localhost:8080/v1/chat/completions \\
+          -H "Authorization: Bearer sk-or-v1-..." \\
+          -H "Content-Type: application/json" \\
+          -d '{
+            "model": "anthropic/claude-3.7-sonnet",
+            "messages": [{"role": "user", "content": "Hello!"}],
+            "stream": true
+          }'
+
+    Notes:
+        - Comprehensive logging of requests, responses, and errors
+        - Graceful error formatting for Xcode compatibility
+        - Automatic content cleanup for streaming responses
+        - Preserves OpenAI API contract while using OpenRouter backend
+    """
     try:
         # Forward all headers except Host and Content-Length (let requests recalculate)
         headers = dict(request.headers)
@@ -294,21 +483,50 @@ import os
 # ...
 
 def signal_handler(sig, frame):
+    """
+    Handle SIGINT (Ctrl+C) for graceful shutdown.
+
+    This signal handler ensures the proxy shuts down cleanly when interrupted,
+    displaying a friendly goodbye message to the user.
+
+    Args:
+        sig: Signal number
+        frame: Current stack frame (unused)
+
+    Returns:
+        None - exits the program with status code 0
+    """
     print('\n\nShutting down OpenRouter proxy gracefully...')
     print('Goodbye!')
     sys.exit(0)
 
 if __name__ == '__main__':
+    """
+    Main entry point for the OpenRouter Proxy application.
+
+    Sets up:
+    - Signal handler for graceful shutdown (Ctrl+C)
+    - Waitress WSGI server for production-grade serving
+    - Port configuration from environment variable (default: 8080)
+    - Server binding to all interfaces (0.0.0.0)
+
+    Environment Variables:
+        PORT: Server port (default: 8080)
+
+    The server runs until interrupted with Ctrl+C or killed.
+    """
     # Register signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     from waitress import serve
     port = int(os.environ.get('PORT', 8080))
-    
+
     print(f"Starting OpenRouter proxy on port {port}")
     print("Press Ctrl+C to stop the server")
-    
+
     try:
+        # Use Waitress for production-grade WSGI serving
+        # Binds to all interfaces (0.0.0.0) for Docker compatibility
         serve(app, host='0.0.0.0', port=port)
     except KeyboardInterrupt:
         print('\n\nShutting down OpenRouter proxy gracefully...')
